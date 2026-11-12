@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { usuariosMock } from "@/lib/mock/usuarios";
 import { crearSesion, cerrarSesion } from "@/lib/session";
+import { obtenerCajaAbierta } from "@/lib/api/caja";
 
 export type LoginState = {
   error?: string;
@@ -49,5 +50,6 @@ export async function iniciarSesion(
 
 export async function salir() {
   await cerrarSesion();
-  redirect("/login");
+    const caja = await obtenerCajaAbierta();
+    redirect(caja ? "/cobro" : "/caja/abrir");
 }
