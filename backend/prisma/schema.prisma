@@ -1,0 +1,297 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ===================== ENUMS =====================
+
+enum UnitType {
+  unidad
+  libra
+
+  @@map("unit_type")
+}
+
+enum MovementType {
+  entrada_mercaderia
+  ajuste_manual
+  venta
+  anulacion
+
+  @@map("movement_type")
+}
+
+enum SaleStatus {
+  activa
+  anulada
+
+  @@map("sale_status")
+}
+
+enum PaymentMethod {
+  efectivo
+  tarjeta
+  fiado
+
+  @@map("payment_method")
+}
+
+enum CreditPaymentMethod {
+  efectivo
+  tarjeta
+
+  @@map("credit_payment_method")
+}
+
+enum SessionStatus {
+  abierta
+  cerrada
+
+  @@map("session_status")
+}
+
+enum AuditAction {
+  anulacion_venta
+  cambio_precio
+  ajuste_stock
+  eliminacion_fiado
+
+  @@map("audit_action")
+}
+
+// ===================== USUARIOS =====================
+
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  auditLogs      AuditLog[]
+  stockMovements StockMovement[]
+  cashSessions   CashRegisterSession[]
+  sales          Sale[]
+  creditPayments CreditPayment[]
+
+  @@map("users")
+}
+
+model AuditLog {
+  id          Int         @id @default(autoincrement())
+  userId      Int         @map("user_id")
+  action      AuditAction
+  targetTable String      @map("target_table")
+  targetId    Int?        @map("target_id")
+  details     String?     @db.Text
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamp(6)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// ===================== INVENTARIO =====================
+
+model Category {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id                      Int      @id @default(autoincrement())
+  code                    String   @unique
+  name                    String
+  categoryId              Int      @map("category_id")
+  cost                    Decimal? @default(0) @db.Decimal(10, 2)
+  salePrice               Decimal  @map("sale_price") @db.Decimal(10, 2)
+  unitType                UnitType @default(unidad) @map("unit_type")
+  stock                   Decimal  @default(0) @db.Decimal(10, 2)
+  minStock                Decimal  @default(0) @map("min_stock") @db.Decimal(10, 2)
+  isvRate                 Decimal  @default(15) @map("isv_rate") @db.Decimal(5, 2)
+  requiresAgeVerification Boolean  @default(false) @map("requires_age_verification")
+  isActive                Boolean  @default(true) @map("is_active")
+  parentProductId         Int?     @map("parent_product_id")
+  unitsPerPackage         Decimal  @default(1) @map("units_per_package") @db.Decimal(10, 2)
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt               DateTime @default(now()) @map("updated_at") @db.Timestamp(6)
+
+  category Category @relation(fields: [categoryId], references: [id])
+
+  parentProduct Product?  @relation("ProductPackages", fields: [parentProductId], references: [id])
+  packages      Product[] @relation("ProductPackages")
+
+  stockMovements           StockMovement[]
+  saleDetails              SaleDetail[]
+  replenishmentSuggestions ReplenishmentSuggestion[]
+
+  @@index([name])
+  @@map("products")
+}
+
+model StockMovement {
+  id            Int          @id @default(autoincrement())
+  productId     Int          @map("product_id")
+  movementType  MovementType @map("movement_type")
+  quantity      Decimal      @db.Decimal(10, 2)
+  previousStock Decimal      @map("previous_stock") @db.Decimal(10, 2)
+  newStock      Decimal      @map("new_stock") @db.Decimal(10, 2)
+  reason        String?
+  saleId        Int?         @map("sale_id")
+  userId        Int          @map("user_id")
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
+
+  product Product @relation(fields: [productId], references: [id])
+  sale    Sale?   @relation(fields: [saleId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([productId, createdAt])
+  @@map("stock_movements")
+}
+
+// ===================== CAJA =====================
+
+model CashRegisterSession {
+  id             Int           @id @default(autoincrement())
+  userId         Int           @map("user_id")
+  openedAt       DateTime      @default(now()) @map("opened_at") @db.Timestamp(6)
+  closedAt       DateTime?     @map("closed_at") @db.Timestamp(6)
+  initialAmount  Decimal       @map("initial_amount") @db.Decimal(10, 2)
+  expectedAmount Decimal?      @map("expected_amount") @db.Decimal(10, 2)
+  actualAmount   Decimal?      @map("actual_amount") @db.Decimal(10, 2)
+  difference     Decimal?      @db.Decimal(10, 2)
+  status         SessionStatus @default(abierta)
+
+  user           User            @relation(fields: [userId], references: [id])
+  sales          Sale[]
+  creditPayments CreditPayment[]
+
+  @@map("cash_register_sessions")
+}
+
+// ===================== VENTAS =====================
+
+model Sale {
+  id                    Int        @id @default(autoincrement())
+  invoiceNumber         String     @unique @map("invoice_number")
+  cashRegisterSessionId Int        @map("cash_register_session_id")
+  userId                Int        @map("user_id")
+  total                 Decimal    @db.Decimal(10, 2)
+  cashReceived          Decimal?   @default(0) @map("cash_received") @db.Decimal(10, 2)
+  changeGiven           Decimal?   @default(0) @map("change_given") @db.Decimal(10, 2)
+  status                SaleStatus @default(activa)
+  voidReason            String?    @map("void_reason")
+  createdAt             DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
+
+  cashRegisterSession CashRegisterSession @relation(fields: [cashRegisterSessionId], references: [id])
+  user                User                @relation(fields: [userId], references: [id])
+
+  details        SaleDetail[]
+  payments       Payment[]
+  stockMovements StockMovement[]
+  creditCharges  CreditCharge[]
+
+  @@index([createdAt])
+  @@map("sales")
+}
+
+model SaleDetail {
+  id        Int     @id @default(autoincrement())
+  saleId    Int     @map("sale_id")
+  productId Int     @map("product_id")
+  quantity  Decimal @db.Decimal(10, 2)
+  unitPrice Decimal @map("unit_price") @db.Decimal(10, 2)
+  isvRate   Decimal @map("isv_rate") @db.Decimal(5, 2)
+  subtotal  Decimal @db.Decimal(10, 2)
+
+  sale    Sale    @relation(fields: [saleId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("sale_details")
+}
+
+model Payment {
+  id            Int           @id @default(autoincrement())
+  saleId        Int           @map("sale_id")
+  paymentMethod PaymentMethod @map("payment_method")
+  amount        Decimal       @db.Decimal(10, 2)
+
+  sale Sale @relation(fields: [saleId], references: [id])
+
+  @@map("payments")
+}
+
+// ===================== FIADO =====================
+
+model CreditCustomer {
+  id             Int       @id @default(autoincrement())
+  aliasName      String    @unique @map("alias_name")
+  balance        Decimal   @default(0) @db.Decimal(10, 2)
+  lastCreditAt   DateTime? @map("last_credit_at") @db.Timestamp(6)
+  lastMovementAt DateTime? @map("last_movement_at") @db.Timestamp(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  charges  CreditCharge[]
+  payments CreditPayment[]
+
+  @@map("credit_customers")
+}
+
+model CreditCharge {
+  id         Int      @id @default(autoincrement())
+  customerId Int      @map("customer_id")
+  saleId     Int      @map("sale_id")
+  amount     Decimal  @db.Decimal(10, 2)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  customer CreditCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  sale     Sale           @relation(fields: [saleId], references: [id])
+
+  @@map("credit_charges")
+}
+
+model CreditPayment {
+  id                    Int                 @id @default(autoincrement())
+  customerId            Int                 @map("customer_id")
+  cashRegisterSessionId Int                 @map("cash_register_session_id")
+  amount                Decimal             @db.Decimal(10, 2)
+  paymentMethod         CreditPaymentMethod @map("payment_method")
+  userId                Int                 @map("user_id")
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamp(6)
+
+  customer            CreditCustomer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  cashRegisterSession CashRegisterSession @relation(fields: [cashRegisterSessionId], references: [id])
+  user                User                @relation(fields: [userId], references: [id])
+
+  @@map("credit_payments")
+}
+
+// ===================== INTELIGENCIA ARTIFICIAL =====================
+
+model ReplenishmentSuggestion {
+  id                Int      @id @default(autoincrement())
+  runDate           DateTime @map("run_date") @db.Date
+  productId         Int      @map("product_id")
+  avgDailySales     Decimal  @map("avg_daily_sales") @db.Decimal(10, 2)
+  daysOfStock       Decimal? @map("days_of_stock") @db.Decimal(10, 2)
+  suggestedQuantity Int      @map("suggested_quantity")
+  isSlowMover       Boolean  @default(false) @map("is_slow_mover")
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([runDate, productId])
+  @@map("replenishment_suggestions")
+}
