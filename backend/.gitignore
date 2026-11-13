@@ -39,3 +39,4 @@ Thumbs.db
 
 # Caché
 .cache/
+/src/generated/prisma
