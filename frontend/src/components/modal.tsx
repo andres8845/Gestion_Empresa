@@ -7,11 +7,12 @@ type Props = {
   titulo: string;
   onCerrar: () => void;
   children: ReactNode;
+  ancho?: "normal" | "grande";
 };
 
 // Ventana que aparece encima de la pantalla. Se cierra con Escape,
 // con la X o tocando fuera de ella.
-export function Modal({ titulo, onCerrar, children }: Props) {
+export function Modal({ titulo, onCerrar, children, ancho = "normal" }: Props) {
   useEffect(() => {
     function alPresionar(e: KeyboardEvent) {
       if (e.key === "Escape") onCerrar();
@@ -29,7 +30,9 @@ export function Modal({ titulo, onCerrar, children }: Props) {
         role="dialog"
         aria-modal="true"
         aria-label={titulo}
-        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+        className={`max-h-[95vh] w-full overflow-y-auto rounded-2xl bg-white p-6 shadow-xl ${
+          ancho === "grande" ? "max-w-xl" : "max-w-md"
+        }`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">

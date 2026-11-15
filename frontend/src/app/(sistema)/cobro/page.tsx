@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { obtenerCajaAbierta } from "@/lib/api/caja";
 import { listarProductosActivos } from "@/lib/api/productos";
+import { listarClientesFiado } from "@/lib/api/fiado";
 import { PantallaCobro } from "./pantalla-cobro";
 
 export const metadata: Metadata = {
@@ -20,9 +21,10 @@ export default function CobroPage() {
 }
 
 async function Contenido() {
-  const [caja, productos] = await Promise.all([
+  const [caja, productos, clientes] = await Promise.all([
     obtenerCajaAbierta(),
     listarProductosActivos(),
+    listarClientesFiado(),
   ]);
 
   // No se puede cobrar sin una caja abierta, porque cada venta queda
@@ -44,5 +46,5 @@ async function Contenido() {
     );
   }
 
-  return <PantallaCobro productos={productos} />;
+  return <PantallaCobro productos={productos} clientes={clientes} />;
 }
