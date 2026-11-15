@@ -19,7 +19,7 @@ export type Producto = {
   unitsPerPackage: number;
 };
 
-export const productosMock: Producto[] = [
+const productosIniciales: Producto[] = [
   { id: 1, code: "ARR-001", name: "Arroz blanco", categoryId: 1, salePrice: 18, unitType: "libra", stock: 25, minStock: 8, isvRate: 0, requiresAgeVerification: false, isActive: true, parentProductId: null, unitsPerPackage: 1 },
   { id: 2, code: "FRI-001", name: "Frijol rojo", categoryId: 1, salePrice: 20, unitType: "libra", stock: 18, minStock: 6, isvRate: 0, requiresAgeVerification: false, isActive: true, parentProductId: null, unitsPerPackage: 1 },
   { id: 3, code: "AZU-001", name: "Azúcar", categoryId: 1, salePrice: 15, unitType: "libra", stock: 30, minStock: 8, isvRate: 0, requiresAgeVerification: false, isActive: true, parentProductId: null, unitsPerPackage: 1 },
@@ -37,3 +37,8 @@ export const productosMock: Producto[] = [
   // Desactivado: no debe aparecer en cobro (RN-14).
   { id: 14, code: "VEN-001", name: "Ventilador de mesa (descontinuado)", categoryId: 7, salePrice: 650, unitType: "unidad", stock: 1, minStock: 0, isvRate: 15, requiresAgeVerification: false, isActive: false, parentProductId: null, unitsPerPackage: 1 },
 ];
+
+const memoria = globalThis as unknown as { productos?: Producto[] };
+memoria.productos ??= productosIniciales.map((p) => ({ ...p }));
+
+export const productosMock = memoria.productos;

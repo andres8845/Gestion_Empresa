@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   Minus,
   Plus,
@@ -21,9 +21,14 @@ import {
   totalCarrito,
   type LineaCarrito,
 } from "@/lib/cobro/carrito";
+import type { DatosPago } from "@/lib/cobro/pago";
 import type { Producto } from "@/lib/mock/productos";
+import type { ClienteResumen } from "@/lib/api/fiado";
 import { DialogoPeso } from "./dialogo-peso";
 import { DialogoEdad } from "./dialogo-edad";
+import { DialogoPago } from "./dialogo-pago";
+import type { ClienteElegido } from "./selector-cliente";
+import { registrarVentaAction } from "./actions";
 
 // Ventana que está abierta encima del cobro, si hay alguna.
 type Pendiente =
@@ -32,9 +37,10 @@ type Pendiente =
 
 type Props = {
   productos: Producto[];
+  clientes: ClienteResumen[];
 };
 
-export function PantallaCobro({ productos }: Props) {
+export function PantallaCobro({ productos, clientes }: Props) {
   const [lineas, setLineas] = useState<LineaCarrito[]>([]);
   const [texto, setTexto] = useState("");
   const [seleccion, setSeleccion] = useState(0);
@@ -43,6 +49,9 @@ export function PantallaCobro({ productos }: Props) {
   // RN-26: la identificación se pide una vez por venta (es el mismo cliente).
   const [edadVerificada, setEdadVerificada] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [mostrarPago, setMostrarPago] = useState(false);
+  const [errorPago, setErrorPago] = useState("");
+  const [guardando, iniciarGuardado] = useTransition();
 
   const sugerencias = useMemo(
     () => buscarPorTexto(productos, texto),
@@ -134,6 +143,34 @@ export function PantallaCobro({ productos }: Props) {
     setLineas([]);
     setEdadVerificada(false);
     setAviso("");
+  }
+
+    // ---------- Pagar y guardar la venta ----------
+
+  function abrirPago() {
+    if (lineas.length === 0) return;
+    setErrorPago("");
+    setMostrarPago(true);
+  }
+
+  function confirmarPago(pago: DatosPago, cliente: ClienteElegido | null) {
+    setErrorPago("");
+    iniciarGuardado(async () => {
+      // Si todo sale bien, el servidor abre la factura.
+      // Si algo falla, regresa el error y no se guarda nada (RN-32).
+      const { error } = await registrarVentaAction({
+        lineas: lineas.map((l) => ({ productoId: l.producto.id, cantidad: l.cantidad })),
+        edadVerificada,
+        pago,
+        cliente:
+          cliente === null
+            ? null
+            : cliente.tipo === "existente"
+              ? { tipo: "existente", id: cliente.id }
+              : { tipo: "nuevo", alias: cliente.alias },
+      });
+      setErrorPago(error);
+    });
   }
 
   function alAceptarPeso(libras: number) {
@@ -304,9 +341,9 @@ export function PantallaCobro({ productos }: Props) {
 
         <button
           type="button"
-          disabled
-          title="El cobro se agrega en el siguiente paso"
-          className="h-16 rounded-xl bg-marca text-xl font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={abrirPago}
+          disabled={lineas.length === 0}
+          className="h-16 rounded-xl bg-marca text-xl font-bold text-white hover:bg-marca-oscuro disabled:cursor-not-allowed disabled:opacity-50"
         >
           Cobrar
         </button>
@@ -332,6 +369,17 @@ export function PantallaCobro({ productos }: Props) {
         />
       )}
 
+      {mostrarPago && (
+        <DialogoPago
+          total={total}
+          clientes={clientes}
+          guardando={guardando}
+          errorServidor={errorPago}
+          onConfirmar={confirmarPago}
+          onCerrar={() => setMostrarPago(false)}
+        />
+      )}
+
       {pendiente?.tipo === "peso" && (
         <DialogoPeso
           producto={pendiente.producto}
@@ -343,7 +391,6 @@ export function PantallaCobro({ productos }: Props) {
     </div>
   );
 }
-
 // Botones - y + con un campo para escribir la cantidad directamente.
 function ControlCantidad({
   cantidad,
