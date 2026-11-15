@@ -81,6 +81,10 @@ Una vez levantados los contenedores:
 | PostgreSQL | localhost:5433 |
 | Prisma Studio | http://localhost:5555 |
 
+La API de autenticación se documenta en [http://localhost:3001/api/docs](http://localhost:3001/api/docs); su documento OpenAPI JSON está en `http://localhost:3001/api/docs-json`. Antes de iniciar por primera vez, aplica también la migración `auth_sessions` con `docker compose exec backend npx prisma migrate deploy` y genera Prisma Client. Las sesiones usan cookies HttpOnly y vencen tras 30 minutos de inactividad.
+
+El endpoint de usuarios autorizados lista cuentas activas y no incluye hashes. El esquema actual no registra parentescos, por lo que la API no puede identificar cuáles cuentas pertenecen a familiares.
+
 Prisma Studio requiere iniciarse por separado.
 
 ## 6. Abrir Prisma Studio
