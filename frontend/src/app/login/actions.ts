@@ -43,13 +43,13 @@ export async function iniciarSesion(
 
   await crearSesion(usuario.username);
 
-  // Siguiente paso del flujo: abrir caja. Mientras esa pantalla no exista,
-  // se va directo a cobro.
-  redirect("/cobro");
+  // Siguiente paso del flujo: si la caja no está abierta, abrirla.
+  // Si alguien ya la abrió hoy, se va directo a cobrar.
+  const caja = await obtenerCajaAbierta();
+  redirect(caja ? "/cobro" : "/caja/abrir");
 }
 
 export async function salir() {
   await cerrarSesion();
-    const caja = await obtenerCajaAbierta();
-    redirect(caja ? "/cobro" : "/caja/abrir");
+  redirect("/login");
 }
