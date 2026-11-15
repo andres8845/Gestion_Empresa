@@ -3,6 +3,7 @@ import { ApiCookieAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import type { Request } from 'express';
 import { AuthService } from '../auth/auth.service.js';
 import { UsersService } from './users.service.js';
+import { readSessionToken } from '../auth/session-cookie.js';
 
 @ApiTags('Usuarios autorizados')
 @Controller('users')
@@ -16,8 +17,7 @@ export class UsersController {
   @ApiResponse({ status: 401, description: 'Sesión ausente, inválida o expirada.', content: { 'application/json': { example: { success: false, message: 'Sesión inválida o expirada' } } } })
   @ApiResponse({ status: 500, description: 'Error interno.' })
   async authorized(@Req() request: Request) {
-    const token = request.headers.cookie?.split(';').map((part) => part.trim()).find((part) => part.startsWith('md_session='))?.slice('md_session='.length);
-    await this.auth.currentUser(token ? decodeURIComponent(token) : undefined);
+    await this.auth.currentUser(readSessionToken(request.headers.cookie));
     return { success: true, data: await this.users.authorized() };
   }
 }

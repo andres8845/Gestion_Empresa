@@ -50,13 +50,21 @@ export async function salir() {
   const { obtenerTokenSesion } = await import("@/lib/session");
   const token = await obtenerTokenSesion();
   try {
-    if (token) await fetch(`${process.env.API_URL ?? "http://localhost:3001"}/auth/logout`, {
-      method: "POST",
-      headers: { Cookie: `md_session=${encodeURIComponent(token)}` },
-      cache: "no-store",
-    });
+    if (token) {
+      await fetch(`${process.env.API_URL ?? "http://localhost:3001"}/auth/logout`, {
+        method: "POST",
+        headers: { Cookie: `md_session=${encodeURIComponent(token)}` },
+        cache: "no-store",
+        signal: AbortSignal.timeout(5000),
+      });
+    }
+  } catch {
+    // La cookie local se elimina aunque la sesión remota no se haya revocado.
   } finally {
-    await cerrarSesion();
+    try {
+      await cerrarSesion();
+    } finally {
+      redirect("/login");
+    }
   }
-  redirect("/login");
 }

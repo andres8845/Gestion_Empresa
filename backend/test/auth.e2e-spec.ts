@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { hash } from 'bcryptjs';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
 
@@ -32,6 +33,8 @@ describe('Authentication and authorized users (HTTP)', () => {
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(PrismaService).useValue(db).compile();
     app = module.createNestApplication();
+    const swaggerConfig = new DocumentBuilder().setTitle('Test API').setVersion('1.0').addCookieAuth('md_session').build();
+    SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, swaggerConfig));
     await app.init();
   });
 
@@ -40,6 +43,22 @@ describe('Authentication and authorized users (HTTP)', () => {
   it('rejects unauthenticated and forged cookies', async () => {
     await request(app.getHttpServer()).get('/auth/yo').expect(401);
     await request(app.getHttpServer()).get('/users/authorized').set('Cookie', 'md_session=forged').expect(401);
+  });
+
+  it('exposes the authentication and users routes in OpenAPI JSON', async () => {
+    await request(app.getHttpServer()).get('/api/docs-json').expect(200).expect(({ body }) => {
+      expect(body.paths).toHaveProperty('/auth/login');
+      expect(body.paths).toHaveProperty('/auth/yo');
+      expect(body.paths).toHaveProperty('/auth/logout');
+      expect(body.paths).toHaveProperty('/users/authorized');
+    });
+  });
+
+  it('treats empty and malformed session cookies as unauthorized', async () => {
+    await request(app.getHttpServer()).get('/auth/yo').set('Cookie', 'md_session=').expect(401);
+    await request(app.getHttpServer()).get('/auth/yo').set('Cookie', 'md_session=%ZZ').expect(401);
+    await request(app.getHttpServer()).get('/users/authorized').set('Cookie', 'md_session=%').expect(401);
+    await request(app.getHttpServer()).get('/users/authorized').set('Cookie', 'md_session=').expect(401);
   });
 
   it('logs in, authenticates, and returns only active public user fields', async () => {

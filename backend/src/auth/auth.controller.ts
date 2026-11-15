@@ -3,13 +3,10 @@ import { ApiBody, ApiCookieAuth, ApiOperation, ApiResponse, ApiTags } from '@nes
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
 import { LoginDto } from './dto/login.dto.js';
+import { readSessionToken } from './session-cookie.js';
 
 const COOKIE = 'md_session';
 const cookieOptions = `Path=/; HttpOnly; SameSite=Lax; Max-Age=1800${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
-function getToken(req: Request) {
-  const raw = req.headers.cookie?.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${COOKIE}=`));
-  return raw ? decodeURIComponent(raw.slice(COOKIE.length + 1)) : undefined;
-}
 
 @ApiTags('Autenticación')
 @Controller('auth')
@@ -38,7 +35,7 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Sesión ausente, inválida, expirada o usuario desactivado.', content: { 'application/json': { example: { success: false, message: 'Sesión inválida o expirada' } } } })
   @ApiResponse({ status: 500, description: 'Error interno.' })
   async me(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
-    const token = getToken(request);
+    const token = readSessionToken(request.headers.cookie);
     const user = await this.auth.currentUser(token);
     response.setHeader('Set-Cookie', `${COOKIE}=${encodeURIComponent(token!)}; ${cookieOptions}`);
     return { success: true, data: user };
@@ -51,7 +48,7 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Sesión cerrada.', content: { 'application/json': { example: { success: true, message: 'Sesión cerrada' } } } })
   @ApiResponse({ status: 500, description: 'Error interno.' })
   async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
-    await this.auth.logout(getToken(request));
+    await this.auth.logout(readSessionToken(request.headers.cookie));
     response.setHeader('Set-Cookie', `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`);
     return { success: true, message: 'Sesión cerrada' };
   }
