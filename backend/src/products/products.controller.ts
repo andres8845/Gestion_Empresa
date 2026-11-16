@@ -19,7 +19,7 @@ export class ProductsController {
   @Get()
   @Header('Cache-Control', 'no-store')
   // «cookie» es el nombre del esquema que Swagger registra para md_session.
-  @ApiCookieAuth('cookie')
+  @ApiCookieAuth('md_session')
   @ApiOperation({
     summary: 'Consultar productos',
     description: 'Consulta de solo lectura de productos en PostgreSQL mediante Prisma. Requiere la cookie md_session.',

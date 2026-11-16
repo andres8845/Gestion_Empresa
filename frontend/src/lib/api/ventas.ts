@@ -9,7 +9,7 @@ import {
   type PagoVenta,
   type Venta,
 } from "@/lib/mock/ventas";
-import { usuariosMock } from "@/lib/mock/usuarios";
+import { obtenerUsuariosAutorizados } from "@/lib/api/usuarios";
 import { redondear } from "@/lib/cobro/carrito";
 import { calcularPago, type DatosPago } from "@/lib/cobro/pago";
 
@@ -201,6 +201,8 @@ export async function obtenerVenta(
   // TODO: GET /ventas/:id
   const venta = ventasMock.find((v) => v.id === id);
   if (!venta) return null;
-  const usuario = usuariosMock.find((u) => u.id === venta.userId);
+  const usuarios = await obtenerUsuariosAutorizados();
+  const usuario = usuarios.find((u) => u.id === venta.userId);
+
   return { ...venta, username: usuario?.username ?? "—" };
 }
