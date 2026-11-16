@@ -20,3 +20,17 @@ const hora = new Intl.DateTimeFormat("es-HN", {
 export function formatearHora(fecha: Date): string {
   return hora.format(fecha);
 }
+
+const fechaHora = new Intl.DateTimeFormat("es-HN", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZone: "America/Tegucigalpa",
+});
+
+// Ej: "15/11/2026, 12:30 p. m."
+export function formatearFechaHora(fecha: Date): string {
+  return fechaHora.format(fecha);
+}

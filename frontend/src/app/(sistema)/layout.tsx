@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { MenuLateral } from "@/components/menu-lateral";
+import { MenuLateral, MenuOpciones } from "@/components/menu-lateral";
 import { EstadoSesion } from "@/components/estado-sesion";
 
 // Marco que comparten todas las pantallas del sistema (menos el login):
@@ -7,7 +7,7 @@ import { EstadoSesion } from "@/components/estado-sesion";
 export default function SistemaLayout({ children }: LayoutProps<"/">) {
   return (
     <div className="flex min-h-screen">
-      <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col border-r border-borde bg-white p-4">
+      <aside className="sticky top-0 print:hidden flex h-screen w-60 shrink-0 flex-col border-r border-borde bg-white p-4">
         <div className="mb-6 flex items-center gap-2 px-1">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-marca text-sm font-bold text-white">
             MD
@@ -15,7 +15,10 @@ export default function SistemaLayout({ children }: LayoutProps<"/">) {
           <span className="font-bold leading-tight">Mercadito Daniela</span>
         </div>
 
-        <MenuLateral />
+        {/* La página actual es un dato del momento, por eso va dentro de Suspense */}
+        <Suspense fallback={<MenuOpciones pathname="" />}>
+          <MenuLateral />
+        </Suspense>
 
         <div className="mt-auto border-t border-borde pt-4">
           {/* Lee la sesión en cada petición, por eso va dentro de Suspense */}

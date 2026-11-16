@@ -31,9 +31,15 @@ const opciones: Opcion[] = [
   { href: "/ajustes", texto: "Ajustes", icono: Settings, lista: false },
 ];
 
+// Lee la página actual para marcar la opción activa.
 export function MenuLateral() {
   const pathname = usePathname();
+  return <MenuOpciones pathname={pathname} />;
+}
 
+// El menú en sí. Mientras carga la página actual se muestra sin
+// ninguna opción marcada (pathname vacío).
+export function MenuOpciones({ pathname }: { pathname: string }) {
   return (
     <nav className="flex flex-col gap-1">
       {opciones.map(({ href, texto, icono: Icono, lista }) => {

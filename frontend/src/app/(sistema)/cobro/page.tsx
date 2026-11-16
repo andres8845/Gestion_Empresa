@@ -1,27 +1,38 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { obtenerCajaAbierta } from "@/lib/api/caja";
+import { listarProductosActivos } from "@/lib/api/productos";
+import { listarClientesFiado } from "@/lib/api/fiado";
+import { PantallaCobro } from "./pantalla-cobro";
 
-// Pantalla temporal: la pantalla real de cobro se hará en su propia rama.
+export const metadata: Metadata = {
+  title: "Cobro | Mercadito Daniela",
+};
+
 export default function CobroPage() {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-4 bg-fondo p-8">
-      <h1 className="text-2xl font-bold">Cobro</h1>
-      <Suspense fallback={null}>
-        <RequiereCaja />
+    <main className="flex flex-1 flex-col bg-fondo">
+      <Suspense fallback={<p className="p-6 text-texto-suave">Cargando...</p>}>
+        <Contenido />
       </Suspense>
     </main>
   );
 }
 
-// No se puede cobrar sin una caja abierta, porque cada venta queda
-// ligada a la sesión de caja (para el cierre del día).
-async function RequiereCaja() {
-  const caja = await obtenerCajaAbierta();
+async function Contenido() {
+  const [caja, productos, clientes] = await Promise.all([
+    obtenerCajaAbierta(),
+    listarProductosActivos(),
+    listarClientesFiado(),
+  ]);
 
+  // No se puede cobrar sin una caja abierta, porque cada venta queda
+  // ligada a la sesión de caja (para el cierre del día).
   if (!caja) {
     return (
-      <div className="flex flex-col items-center gap-4 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+        <h1 className="text-2xl font-bold">Cobro</h1>
         <p className="text-texto-suave">
           La caja está cerrada. Ábrala para empezar a cobrar.
         </p>
@@ -35,9 +46,5 @@ async function RequiereCaja() {
     );
   }
 
-  return (
-    <p className="text-texto-suave">
-      Caja lista. Esta pantalla se construye en el siguiente paso.
-    </p>
-  );
+  return <PantallaCobro productos={productos} clientes={clientes} />;
 }
