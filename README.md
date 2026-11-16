@@ -24,9 +24,10 @@ POSTGRES_USER=user_example
 POSTGRES_PASSWORD=TU_CONTRASENA
 
 DATABASE_URL=postgresql://user_example:TU_CONTRASENA@postgres:5432/name_db?schema=public
+SEED_USER_PASSWORD=CAMBIAR_POR_UNA_CONTRASENA_SEGURA
 ```
 
-Reemplazar `TU_CONTRASENA` por la contraseña compartida por el equipo.
+Reemplazar `TU_CONTRASENA` por la contraseña compartida por el equipo. `SEED_USER_PASSWORD` es la contraseña para las cuentas de demostración que crea el seed; configúrala antes de ejecutarlo. El seed almacena su hash con bcrypt. Para usuarios que ya existen, actualiza su estado activo y conserva el hash de contraseña existente. No uses credenciales de demostración en producción y nunca subas un archivo `.env` real a GitHub.
 
 ## 3. Levantar el proyecto
 
@@ -80,6 +81,18 @@ Una vez levantados los contenedores:
 | Backend | http://localhost:3001 |
 | PostgreSQL | localhost:5433 |
 | Prisma Studio | http://localhost:5555 |
+
+La API de autenticación se documenta en [http://localhost:3001/api/docs](http://localhost:3001/api/docs); su documento OpenAPI JSON está en `http://localhost:3001/api/docs-json`. Antes de iniciar por primera vez, aplica también la migración `auth_sessions` con `docker compose exec backend npx prisma migrate deploy` y genera Prisma Client. Las sesiones usan cookies HttpOnly y vencen tras 30 minutos de inactividad.
+
+El endpoint de usuarios autorizados lista cuentas activas y no incluye hashes. El esquema actual no registra parentescos, por lo que la API no puede identificar cuáles cuentas pertenecen a familiares.
+
+El seed carga también los demás datos de demostración del proyecto, así que ejecútalo únicamente en una base de desarrollo. Para cargarlos después de configurar `.env` y aplicar las migraciones, ejecuta desde `backend`:
+
+```bash
+npx prisma db seed
+```
+
+El seed necesita `SEED_USER_PASSWORD` en el `.env` de la raíz.
 
 Prisma Studio requiere iniciarse por separado.
 
@@ -194,7 +207,27 @@ docker compose exec backend npx prisma migrate dev --name nombre_migracion
 
 Las nuevas migraciones deben incluirse en Git.
 
-## 9. Solución de problemas
+## 9. Pruebas de autenticación con PostgreSQL aislado
+
+La suite HTTP existente usa un Prisma simulado. Para comprobar persistencia real, la suite `backend/test/auth.postgres.e2e-spec.ts` requiere una base de datos independiente cuyo nombre incluya `test`; nunca la apuntes a la base principal. Con PostgreSQL de Docker iniciado, crea una base vacía dedicada desde la raíz:
+
+```bash
+docker compose exec postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "CREATE DATABASE gestion_empresa_test;"'
+```
+
+Luego, en PowerShell desde `backend`, configura una URL con el usuario, contraseña y puerto local de tu PostgreSQL (codifica caracteres especiales de la contraseña en formato URL), aplica las migraciones y corre las pruebas:
+
+```powershell
+$env:AUTH_TEST_DATABASE_URL = "postgresql://USUARIO:CONTRASENA@localhost:5433/gestion_empresa_test?schema=public"
+$env:DATABASE_URL = $env:AUTH_TEST_DATABASE_URL
+npx prisma migrate deploy
+npx prisma generate
+npm run test:e2e
+```
+
+La suite real solo se activa cuando `AUTH_TEST_DATABASE_URL` está configurada y el nombre de la base contiene `test`. Crea una cuenta temporal con nombre único y elimina únicamente esa cuenta y sus sesiones al finalizar. La suite comprueba la persistencia del hash del token, `/auth/yo`, `/users/authorized`, logout y rechazo de una sesión expirada. Sin esa variable, el caso de PostgreSQL se marca como omitido; los demás tests e2e siguen ejecutándose.
+
+## 10. Solución de problemas
 
 ### El puerto 5432 está ocupado
 
@@ -232,7 +265,7 @@ docker compose exec backend npx prisma generate
 docker compose restart backend
 ```
 
-## 10. Recomendaciones
+## 11. Recomendaciones
 
 - No subir archivos `.env` a GitHub.
 - No eliminar el volumen de PostgreSQL si se desea conservar la información.

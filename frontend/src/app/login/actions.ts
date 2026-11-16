@@ -1,7 +1,6 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { usuariosMock } from "@/lib/mock/usuarios";
 import { crearSesion, cerrarSesion } from "@/lib/session";
 import { obtenerCajaAbierta } from "@/lib/api/caja";
 
@@ -23,33 +22,49 @@ export async function iniciarSesion(
     return { error: "Ingrese su usuario y contraseña.", username };
   }
 
-  // TODO: reemplazar por la llamada al backend (POST /auth/login).
-  const usuario = usuariosMock.find(
-    (u) => u.username === username && u.password === password,
-  );
-
-  // Mismo mensaje para usuario o contraseña incorrectos, así no se
-  // revela cuál de los dos falló.
-  if (!usuario) {
-    return { error: "Usuario o contraseña incorrectos.", username };
+  try {
+    const response = await fetch(`${process.env.API_URL ?? "http://localhost:3001"}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      if (response.status === 400) return { error: "Ingrese un usuario y contraseña válidos.", username };
+      if (response.status === 429) return { error: "Demasiados intentos. Espere unos minutos y vuelva a intentar.", username };
+      return { error: "Usuario o contraseña incorrectos.", username };
+    }
+    const setCookie = response.headers.get("set-cookie");
+    const token = setCookie?.match(/md_session=([^;]+)/)?.[1];
+    if (!token) return { error: "No fue posible iniciar la sesión. Intente nuevamente.", username };
+    await crearSesion(decodeURIComponent(token));
+  } catch {
+    return { error: "No se pudo conectar con el sistema. Intente nuevamente.", username };
   }
 
-  if (!usuario.is_active) {
-    return {
-      error: "Este usuario está desactivado. Hable con el encargado.",
-      username,
-    };
-  }
-
-  await crearSesion(usuario.username);
-
-  // Siguiente paso del flujo: si la caja no está abierta, abrirla.
-  // Si alguien ya la abrió hoy, se va directo a cobrar.
   const caja = await obtenerCajaAbierta();
   redirect(caja ? "/cobro" : "/caja/abrir");
 }
 
 export async function salir() {
-  await cerrarSesion();
-  redirect("/login");
+  const { obtenerTokenSesion } = await import("@/lib/session");
+  const token = await obtenerTokenSesion();
+  try {
+    if (token) {
+      await fetch(`${process.env.API_URL ?? "http://localhost:3001"}/auth/logout`, {
+        method: "POST",
+        headers: { Cookie: `md_session=${encodeURIComponent(token)}` },
+        cache: "no-store",
+        signal: AbortSignal.timeout(5000),
+      });
+    }
+  } catch {
+    // La cookie local se elimina aunque la sesión remota no se haya revocado.
+  } finally {
+    try {
+      await cerrarSesion();
+    } finally {
+      redirect("/login");
+    }
+  }
 }

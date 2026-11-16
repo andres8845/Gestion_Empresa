@@ -1,28 +1,21 @@
 import "server-only";
 import { redirect } from "next/navigation";
-import { obtenerUsuarioActual } from "@/lib/session";
-import { usuariosMock } from "@/lib/mock/usuarios";
+import { obtenerTokenSesion } from "@/lib/session";
 
-// Solo lo que las pantallas necesitan saber del usuario.
-// Nunca se manda la contraseña al navegador.
-export type UsuarioSesion = {
-  id: number;
-  username: string;
-};
+export type UsuarioSesion = { id: number; username: string; isActive: boolean };
 
-// Devuelve el usuario que inició sesión. Si la sesión no es válida,
-// manda al login.
 export async function requerirUsuario(): Promise<UsuarioSesion> {
-  const username = await obtenerUsuarioActual();
-
-  // TODO: GET /auth/yo (el backend valida la sesión en Redis)
-  const usuario = usuariosMock.find(
-    (u) => u.username === username && u.is_active,
-  );
-
-  if (!usuario) {
+  const token = await obtenerTokenSesion();
+  if (!token) redirect("/login");
+  try {
+    const response = await fetch(`${process.env.API_URL ?? "http://localhost:3001"}/auth/yo`, {
+      headers: { Cookie: `md_session=${encodeURIComponent(token)}` },
+      cache: "no-store",
+    });
+    if (!response.ok) redirect("/login");
+    const result = await response.json() as { data: UsuarioSesion };
+    return result.data;
+  } catch {
     redirect("/login");
   }
-
-  return { id: usuario.id, username: usuario.username };
 }

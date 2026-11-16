@@ -25,6 +25,19 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## Autenticación y OpenAPI
+
+La API de Mercadito Daniela expone Swagger UI en `http://localhost:3001/api/docs` y el documento OpenAPI en `http://localhost:3001/api/docs-json`.
+
+- `POST /auth/login` recibe `username` y `password`; establece la cookie HttpOnly `md_session`.
+- `GET /auth/yo` valida la sesión y renueva sus 30 minutos de inactividad.
+- `POST /auth/logout` revoca la sesión del servidor.
+- `GET /users/authorized` exige la cookie y devuelve solo campos públicos de usuarios activos.
+
+Para instalar los cambios, ejecuta `npx prisma migrate deploy` y `npx prisma generate` en `backend`. En producción la cookie lleva el atributo `Secure`; el frontend local alcanza la API mediante `API_URL` (en Docker está configurado como `http://backend:3001`).
+
+La tabla `User` no modela parentescos. Por eso `users/authorized` retorna usuarios activos y no afirma que sean familiares.
+
 ## Project setup
 
 ```bash
