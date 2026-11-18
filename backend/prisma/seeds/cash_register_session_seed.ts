@@ -22,12 +22,14 @@ export async function seedCashRegisterSessions(prisma: PrismaClient) {
     },
     {
       openedAt: SEED.dates.openSession,
-      closedAt: null,
+      closedAt: new Date(
+        SEED.dates.openSession.getTime() + 9 * 60 * 60 * 1000
+      ),
       initialAmount: '300.00',
       expectedAmount: null,
       actualAmount: null,
       difference: null,
-      status: 'abierta' as const,
+      status: 'cerrada' as const,
     },
   ];
 
