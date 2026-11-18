@@ -1,24 +1,45 @@
+
 import "server-only";
-import { connection } from "next/server";
-import { productosMock } from "@/lib/mock/productos";
-import { cargosFiadoMock, clientesFiadoMock, type ClienteFiado } from "@/lib/mock/fiado";
-import {
-  movimientosStockMock,
-  ventasMock,
-  type DetalleVenta,
-  type PagoVenta,
-  type Venta,
-} from "@/lib/mock/ventas";
-import { usuariosMock } from "@/lib/mock/usuarios";
-import { redondear } from "@/lib/cobro/carrito";
-import { calcularPago, type DatosPago } from "@/lib/cobro/pago";
+import { redirect } from "next/navigation";
+import {obtenerTokenSesion, SESSION_COOKIE } from "@/lib/session";
+import type { DatosPago } from "@/lib/cobro/pago";
 
-export type { Venta };
+export type DetalleVenta = {
+  productId: number;
+  productName: string;
+  unitType: "unidad" | "libra";
+  quantity: number;
+  unitPrice: number;
+  isvRate: number;
+  subtotal: number;
+};
 
-// Lo que manda la pantalla de cobro. Solo ids y cantidades: los precios
-// los pone el servidor, nunca se confía en el precio que manda el navegador.
+export type PagoVenta = {
+  paymentMethod: "efectivo" | "tarjeta" | "fiado";
+  amount: number;
+};
+
+export type Venta = {
+  id: number;
+  invoiceNumber: string;
+  cashRegisterSessionId: number;
+  userId: number;
+  username: string;
+  total: number;
+  cashReceived: number;
+  changeGiven: number;
+  status: "activa" | "anulada";
+  voidReason: string | null;
+  createdAt: Date;
+  details: DetalleVenta[];
+  payments: PagoVenta[];
+};
+
 export type NuevaVenta = {
-  lineas: { productoId: number; cantidad: number }[];
+  lineas: {
+    productoId: number;
+    cantidad: number;
+  }[];
   edadVerificada: boolean;
   pago: DatosPago;
   cliente:
@@ -31,176 +52,138 @@ export type ResultadoVenta =
   | { ok: true; ventaId: number }
   | { ok: false; error: string };
 
-const MAX_ALIAS = 40;
+type VentaApi = Omit<Venta, "createdAt"> & {
+  createdAt: string;
+};
 
-// RN-32: toda la venta se guarda como una sola transacción.
-// Aquí se imita así: PRIMERO se valida todo, y solo si todo está bien
-// se hacen los cambios de una sola vez. Si algo falla, no se toca nada.
-// En el backend esto será un prisma.$transaction().
-export async function registrarVenta(
-  datos: NuevaVenta,
-  userId: number,
-  cajaId: number,
-): Promise<ResultadoVenta> {
-  // TODO: POST /ventas
+type RespuestaApi<T> = {
+  success: boolean;
+  data: T;
+  message?: string | string[];
+};
 
-  // ---------- 1. Validar productos y armar el detalle ----------
-  if (datos.lineas.length === 0) {
-    return { ok: false, error: "La venta no tiene productos." };
-  }
+const API_URL =
+  process.env.API_URL ?? "http://localhost:3001";
 
-  const detalles: DetalleVenta[] = [];
-  for (const linea of datos.lineas) {
-    const producto = productosMock.find((p) => p.id === linea.productoId);
-    if (!producto || !producto.isActive) {
-      return { ok: false, error: "Uno de los productos ya no está disponible." };
-    }
+async function obtenerHeaders(): Promise<HeadersInit> {
+  const token = await obtenerTokenSesion();
 
-    const cantidadValida =
-      producto.unitType === "libra"
-        ? linea.cantidad > 0 && redondear(linea.cantidad) === linea.cantidad
-        : Number.isInteger(linea.cantidad) && linea.cantidad >= 1;
-    if (!cantidadValida) {
-      return { ok: false, error: `Cantidad inválida para ${producto.name}.` };
-    }
+  if (!token) redirect("/login");
 
-    if (producto.requiresAgeVerification && !datos.edadVerificada) {
-      return { ok: false, error: `Falta verificar la edad para ${producto.name}.` };
-    }
-
-    detalles.push({
-      productId: producto.id,
-      productName: producto.name,
-      unitType: producto.unitType,
-      quantity: linea.cantidad,
-      unitPrice: producto.salePrice, // RN-19: se copia el precio de hoy
-      isvRate: producto.isvRate,
-      subtotal: redondear(linea.cantidad * producto.salePrice),
-    });
-  }
-
-  const total = redondear(detalles.reduce((s, d) => s + d.subtotal, 0));
-
-  // ---------- 2. Validar el pago ----------
-  const pago = calcularPago(total, datos.pago);
-  if (!pago.ok) return pago;
-
-  // ---------- 3. Validar el cliente de fiado ----------
-  let clienteExistente: ClienteFiado | undefined;
-  let aliasNuevo: string | null = null;
-
-  if (datos.pago.fiado > 0) {
-    if (!datos.cliente) {
-      return { ok: false, error: "Elija a qué cliente se le fía." }; // RN-31
-    }
-    if (datos.cliente.tipo === "existente") {
-      const id = datos.cliente.id;
-      clienteExistente = clientesFiadoMock.find((c) => c.id === id);
-      if (!clienteExistente) {
-        return { ok: false, error: "El cliente de fiado ya no existe." };
-      }
-    } else {
-      aliasNuevo = datos.cliente.alias.trim().replace(/\s+/g, " ");
-      if (!aliasNuevo || aliasNuevo.length > MAX_ALIAS) {
-        return { ok: false, error: `El nombre debe tener entre 1 y ${MAX_ALIAS} letras.` };
-      }
-      // RN-39: el nombre o apodo es único.
-      const repetido = clientesFiadoMock.some(
-        (c) => c.aliasName.toLowerCase() === aliasNuevo!.toLowerCase(),
-      );
-      if (repetido) {
-        return { ok: false, error: `Ya existe un cliente llamado "${aliasNuevo}". Use un apodo distinto.` };
-      }
-    }
-  }
-
-  // ---------- 4. Todo está bien: guardar todo junto ----------
-  const ahora = new Date();
-  const ventaId = ventasMock.length + 1;
-
-  const pagos: PagoVenta[] = [];
-  if (pago.efectivoAplicado > 0) pagos.push({ paymentMethod: "efectivo", amount: pago.efectivoAplicado });
-  if (datos.pago.tarjeta > 0) pagos.push({ paymentMethod: "tarjeta", amount: datos.pago.tarjeta });
-  if (datos.pago.fiado > 0) pagos.push({ paymentMethod: "fiado", amount: datos.pago.fiado });
-
-  ventasMock.push({
-    id: ventaId,
-    // RN-33: número correlativo, no se repite ni se salta.
-    invoiceNumber: String(ventaId).padStart(8, "0"),
-    cashRegisterSessionId: cajaId,
-    userId,
-    total,
-    cashReceived: pago.efectivoAplicado > 0 ? datos.pago.efectivoRecibido : 0,
-    changeGiven: pago.cambio,
-    status: "activa",
-    voidReason: null,
-    createdAt: ahora,
-    details: detalles,
-    payments: pagos,
-  });
-
-  // Descontar stock. Un paquete descuenta del producto padre.
-  // RN-17: el stock puede quedar en negativo.
-  for (const d of detalles) {
-    const producto = productosMock.find((p) => p.id === d.productId)!;
-    const base = producto.parentProductId
-      ? productosMock.find((p) => p.id === producto.parentProductId)!
-      : producto;
-    const unidades = redondear(d.quantity * producto.unitsPerPackage);
-    const anterior = base.stock;
-    base.stock = redondear(base.stock - unidades);
-
-    movimientosStockMock.push({
-      id: movimientosStockMock.length + 1,
-      productId: base.id,
-      movementType: "venta",
-      quantity: -unidades,
-      previousStock: anterior,
-      newStock: base.stock,
-      saleId: ventaId,
-      userId,
-      createdAt: ahora,
-    });
-  }
-
-  // Cargo de fiado ligado a la venta (RN-41).
-  if (datos.pago.fiado > 0) {
-    let cliente = clienteExistente;
-    if (!cliente) {
-      cliente = {
-        id: Math.max(0, ...clientesFiadoMock.map((c) => c.id)) + 1,
-        aliasName: aliasNuevo!,
-        balance: 0,
-        lastCreditAt: null,
-        lastMovementAt: null,
-        createdAt: ahora,
-      };
-      clientesFiadoMock.push(cliente);
-    }
-
-    cargosFiadoMock.push({
-      id: cargosFiadoMock.length + 1,
-      customerId: cliente.id,
-      saleId: ventaId,
-      amount: datos.pago.fiado,
-      createdAt: ahora,
-    });
-    cliente.balance = redondear(cliente.balance + datos.pago.fiado);
-    cliente.lastCreditAt = ahora;
-    cliente.lastMovementAt = ahora;
-  }
-
-  return { ok: true, ventaId };
+  return {
+    "Content-Type": "application/json",
+    Cookie: `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+  };
 }
 
-// Para la factura: la venta y el nombre de quien atendió.
+function convertirVenta(venta: VentaApi): Venta {
+  return {
+    ...venta,
+    createdAt: new Date(venta.createdAt),
+  };
+}
+
+// POST /ventas
+export async function registrarVenta(
+  datos: NuevaVenta,
+): Promise<ResultadoVenta> {
+  const headers = await obtenerHeaders();
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_URL}/ventas`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(datos),
+      cache: "no-store",
+    });
+  } catch {
+    return {
+      ok: false,
+      error: "No se pudo obtener respuesta del servidor. Verifique el historial antes de reintentar.",
+    };
+  }
+
+  if (response.status === 401) redirect("/login");
+
+  const result: RespuestaApi<VentaApi> | null =
+    await response.json().catch(() => null);
+
+  if (!response.ok || !result?.success) {
+    const mensaje = result?.message;
+
+    return {
+      ok: false,
+      error: Array.isArray(mensaje)
+        ? mensaje.join(". ")
+        : mensaje ?? "No se pudo confirmar la venta. Verifique el historial.",
+    };
+  }
+
+  return {
+    ok: true,
+    ventaId: result.data.id,
+  };
+}
+
+// GET /ventas/:id
 export async function obtenerVenta(
   id: number,
-): Promise<(Venta & { username: string }) | null> {
-  await connection();
-  // TODO: GET /ventas/:id
-  const venta = ventasMock.find((v) => v.id === id);
-  if (!venta) return null;
-  const usuario = usuariosMock.find((u) => u.id === venta.userId);
-  return { ...venta, username: usuario?.username ?? "—" };
+): Promise<Venta | null> {
+  const headers = await obtenerHeaders();
+
+  const response = await fetch(
+    `${API_URL}/ventas/${id}`,
+    {
+      headers,
+      cache: "no-store",
+    },
+  );
+
+  if (response.status === 401) redirect("/login");
+  if (response.status === 404) return null;
+
+  if (!response.ok) {
+    throw new Error("No se pudo consultar la venta.");
+  }
+
+  const result: RespuestaApi<VentaApi> =
+    await response.json();
+
+  if (!result.success || !result.data) {
+    throw new Error("Respuesta de venta inválida.");
+  }
+
+  return convertirVenta(result.data);
+}
+
+// GET /ventas
+export async function listarVentas(
+  limit = 50,
+): Promise<Venta[]> {
+  const headers = await obtenerHeaders();
+
+  const response = await fetch(
+    `${API_URL}/ventas?limit=${limit}`,
+    {
+      headers,
+      cache: "no-store",
+    },
+  );
+
+  if (response.status === 401) redirect("/login");
+
+  if (!response.ok) {
+    throw new Error("No se pudo consultar el historial.");
+  }
+
+  const result: RespuestaApi<VentaApi[]> =
+    await response.json();
+
+  if (!result.success || !Array.isArray(result.data)) {
+    throw new Error("Respuesta de ventas inválida.");
+  }
+
+  return result.data.map(convertirVenta);
 }

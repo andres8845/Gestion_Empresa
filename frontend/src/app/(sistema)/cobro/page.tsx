@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { obtenerCajaAbierta } from "@/lib/api/caja";
-import { listarProductosActivos } from "@/lib/api/productos";
+import { ErrorConsultaProductos, listarProductosActivos } from "@/lib/api/productos";
 import { listarClientesFiado } from "@/lib/api/fiado";
 import { PantallaCobro } from "./pantalla-cobro";
 
@@ -21,11 +21,7 @@ export default function CobroPage() {
 }
 
 async function Contenido() {
-  const [caja, productos, clientes] = await Promise.all([
-    obtenerCajaAbierta(),
-    listarProductosActivos(),
-    listarClientesFiado(),
-  ]);
+  const caja = await obtenerCajaAbierta();
 
   // No se puede cobrar sin una caja abierta, porque cada venta queda
   // ligada a la sesión de caja (para el cierre del día).
@@ -44,6 +40,27 @@ async function Contenido() {
         </Link>
       </div>
     );
+  }
+
+  const [productos, clientes] = await Promise.all([
+    listarProductosActivos().catch((error: unknown) => {
+      if (!(error instanceof ErrorConsultaProductos)) throw error;
+      console.error(error);
+      return null;
+    }),
+    listarClientesFiado(),
+  ]);
+
+  if (!productos) {
+    return (
+      <p role="alert" className="p-6 text-peligro">
+        No se pudieron cargar los productos. Vuelva a cargar la página para reintentar.
+      </p>
+    );
+  }
+
+  if (productos.length === 0) {
+    return <p className="p-6 text-texto-suave">No hay productos activos para cobrar.</p>;
   }
 
   return <PantallaCobro productos={productos} clientes={clientes} />;
