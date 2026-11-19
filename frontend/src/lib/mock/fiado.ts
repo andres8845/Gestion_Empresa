@@ -1,34 +1,36 @@
-// Clientes y cargos de fiado de prueba mientras el backend no está listo.
-// Tienen la misma forma que los modelos `CreditCustomer` y `CreditCharge`.
-// RN-38: del cliente solo se guarda el nombre o apodo.
+// Abonos y clientes eliminados de prueba mientras el backend no tiene
+// los endpoints para registrar abonos ni para borrar clientes de fiado.
+// Los clientes reales vienen de GET /fiado/clientes; aquí solo se guarda
+// lo que se hizo desde la pantalla de Fiado, y se aplica encima.
+// Se pierden al reiniciar `npm run dev`.
 
-export type ClienteFiado = {
-  id: number;
-  aliasName: string;
-  balance: number;
-  lastCreditAt: Date | null;
-  lastMovementAt: Date | null;
-  createdAt: Date;
-};
-
-export type CargoFiado = {
+export type AbonoFiado = {
   id: number;
   customerId: number;
-  saleId: number;
   amount: number;
+  paymentMethod: "efectivo" | "tarjeta";
+  cashRegisterSessionId: number | null;
+  userId: number;
   createdAt: Date;
 };
 
-const memoria = globalThis as unknown as {
-  clientesFiado?: ClienteFiado[];
-  cargosFiado?: CargoFiado[];
+// Copia sin nombre de cada abono, para el cierre de caja. Así el efectivo
+// que entró a la gaveta se sigue contando aunque después se borre al
+// cliente con todos sus abonos (RN-46).
+export type AbonoEnCaja = {
+  amount: number;
+  paymentMethod: "efectivo" | "tarjeta";
+  cashRegisterSessionId: number | null;
+  createdAt: Date;
 };
 
-memoria.clientesFiado ??= [
-  { id: 1, aliasName: "Doña Marta", balance: 150, lastCreditAt: new Date("2026-11-10T15:00:00Z"), lastMovementAt: new Date("2026-11-10T15:00:00Z"), createdAt: new Date("2026-10-01T15:00:00Z") },
-  { id: 2, aliasName: "Juan del taller", balance: 0, lastCreditAt: new Date("2026-10-20T15:00:00Z"), lastMovementAt: new Date("2026-10-28T15:00:00Z"), createdAt: new Date("2026-09-15T15:00:00Z") },
-];
-memoria.cargosFiado ??= [];
+type EstadoFiado = {
+  abonos: AbonoFiado[];
+  abonosEnCaja: AbonoEnCaja[];
+  eliminados: Set<number>;
+};
 
-export const clientesFiadoMock = memoria.clientesFiado;
-export const cargosFiadoMock = memoria.cargosFiado;
+const memoria = globalThis as unknown as { fiado?: EstadoFiado };
+memoria.fiado ??= { abonos: [], abonosEnCaja: [], eliminados: new Set() };
+
+export const fiadoMock = memoria.fiado;
