@@ -7,7 +7,7 @@ type Props = {
   titulo: string;
   onCerrar: () => void;
   children: ReactNode;
-  ancho?: "normal" | "grande";
+  ancho?: "normal" | "grande" | "extra";
 };
 
 // Ventana que aparece encima de la pantalla. Se cierra con Escape,
@@ -31,7 +31,7 @@ export function Modal({ titulo, onCerrar, children, ancho = "normal" }: Props) {
         aria-modal="true"
         aria-label={titulo}
         className={`max-h-[95vh] w-full overflow-y-auto rounded-2xl bg-white p-6 shadow-xl ${
-          ancho === "grande" ? "max-w-xl" : "max-w-md"
+          ancho === "extra" ? "max-w-3xl" : ancho === "grande" ? "max-w-xl" : "max-w-md"
         }`}
         onMouseDown={(e) => e.stopPropagation()}
       >

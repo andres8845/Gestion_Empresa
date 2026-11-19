@@ -91,7 +91,7 @@ export function FormularioProducto({ producto, categorias, onCerrar }: Props) {
     <Modal
       titulo={nuevo ? "Nuevo producto" : `Editar ${producto.name}`}
       onCerrar={guardando ? () => {} : onCerrar}
-      ancho="grande"
+      ancho="extra"
     >
       <form onSubmit={guardar} className="flex flex-col gap-4">
         <div className="grid grid-cols-3 gap-3">
@@ -153,7 +153,7 @@ export function FormularioProducto({ producto, categorias, onCerrar }: Props) {
         </div>
 
         <div className="grid grid-cols-3 gap-3">
-          <Campo etiqueta={`Precio de venta${unitType === "libra" ? " por libra" : ""} (ISV incluido)`} id="precio">
+            <Campo etiqueta={`Precio${unitType === "libra" ? " por libra" : " de venta"} (ISV incluido)`} id="precio">
             <ConPrefijo>
               <input id="precio" value={precio} onChange={(e) => setPrecio(e.target.value)} inputMode="decimal" placeholder="0.00" className={`${estiloCampo} pl-8`} />
             </ConPrefijo>
@@ -233,7 +233,7 @@ function Campo({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
+    <div className={`flex flex-col justify-end gap-1.5 ${className}`}>
       <label htmlFor={id} className="text-sm font-medium">
         {etiqueta}
       </label>
