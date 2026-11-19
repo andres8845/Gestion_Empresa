@@ -1,9 +1,9 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsInt,
   IsNumber,
-  IsNotEmpty,
+  IsOptional,
   IsString,
   Max,
   MaxLength,
@@ -27,12 +27,12 @@ export class CreateStockAdjustmentDto {
   @Max(99999999.99)
   newStock!: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'Diferencia encontrada durante inventario físico.',
     maxLength: 250,
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(250)
-  reason!: string;
+  reason?: string;
 }

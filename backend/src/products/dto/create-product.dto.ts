@@ -1,6 +1,17 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max,
-  MaxLength, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { UnitType } from '../../generated/prisma/enums.js';
 
 export class CreateProductDto {
@@ -56,6 +67,14 @@ export class CreateProductDto {
   @IsOptional()
   @IsBoolean()
   requiresAgeVerification?: boolean;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Indica si el producto estará activo al crearse.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 
   @IsOptional()
   @Type(() => Number)
