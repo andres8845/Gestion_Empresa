@@ -8,9 +8,11 @@ import { ProductsModule } from './products/products.module.js';
 import { CashModule } from './cash/cash.module.js';
 import { SalesModule } from './sales/sales.module.js';
 import { CreditModule } from './credit/credit.module.js';
+import { StockMovementsModule } from './stock-movements/stock-movements.module.js';
+import { CategoriesModule } from './categories/categories.module.js';
 
 @Module({
-  imports: [PrismaModule, AuthModule, UsersModule, ProductsModule, CashModule, SalesModule, CreditModule],
+  imports: [PrismaModule, AuthModule, UsersModule, ProductsModule, CashModule, SalesModule, CreditModule, StockMovementsModule, CategoriesModule],
   controllers: [AppController],
   providers: [AppService],
 })

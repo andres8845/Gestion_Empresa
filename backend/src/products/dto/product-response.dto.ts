@@ -17,6 +17,9 @@ export class ProductResponseDto {
   @ApiProperty({ type: 'number', multipleOf: 0.01 })
   salePrice!: number;
 
+  @ApiProperty({ type: 'number', multipleOf: 0.01 })
+  cost!: number;
+
   @ApiProperty({ enum: UnitType })
   unitType!: UnitType;
 
@@ -48,6 +51,7 @@ const productExample: ProductResponseDto = {
   name: 'Arroz blanco',
   categoryId: 1,
   salePrice: 18.25,
+  cost: 10,
   unitType: UnitType.libra,
   stock: 25,
   minStock: 8,
