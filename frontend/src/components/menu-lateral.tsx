@@ -27,7 +27,7 @@ const opciones: Opcion[] = [
   { href: "/fiado", texto: "Fiado", icono: NotebookPen, lista: true },
   { href: "/ventas", texto: "Ventas", icono: Receipt, lista: true },
   { href: "/sugerencias", texto: "Sugerencias", icono: Sparkles, lista: false },
-  { href: "/caja/cerrar", texto: "Cerrar caja", icono: Vault, lista: false },
+  { href: "/caja/cerrar", texto: "Cerrar caja", icono: Vault, lista: true },
   { href: "/ajustes", texto: "Ajustes", icono: Settings, lista: false },
 ];
 
