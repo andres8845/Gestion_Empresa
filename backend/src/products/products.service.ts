@@ -99,7 +99,7 @@ export class ProductsService {
             isvRate: dto.isvRate ?? 15,
             requiresAgeVerification:
               dto.requiresAgeVerification ?? false,
-            isActive: true,
+            isActive: dto.isActive ?? true,
             parentProductId: dto.parentProductId ?? null,
             unitsPerPackage: dto.unitsPerPackage ?? 1,
           },

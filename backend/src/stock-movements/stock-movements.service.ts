@@ -53,6 +53,7 @@ export class StockMovementsService {
         select: {
           id: true,
           parentProductId: true,
+          unitType: true,
         },
       });
 
@@ -70,11 +71,21 @@ export class StockMovementsService {
         });
       }
 
+      if (product.unitType === 'unidad' && !Number.isInteger(dto.quantity)) {
+        throw new BadRequestException({
+            success: false,
+            message: 'Este producto se cuenta por unidades enteras.',
+        });
+        }
+
       // Actualizar el inventario mediante incremento atómico.
       const updatedProduct = await tx.product.update({
         where: { id: product.id },
         data: {
-          stock: { increment: dto.quantity },
+        stock: { increment: dto.quantity },
+        ...(dto.cost !== undefined && {
+            cost: dto.cost,
+        }),
         },
         select: {
           stock: true,
@@ -200,7 +211,7 @@ export class StockMovementsService {
           quantity: difference,
           previousStock,
           newStock,
-          reason: dto.reason.trim(),
+          reason: dto.reason?.trim() || null,
           userId,
         },
         include: {
