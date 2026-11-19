@@ -24,7 +24,7 @@ type Opcion = {
 const opciones: Opcion[] = [
   { href: "/cobro", texto: "Cobro", icono: ShoppingCart, lista: true },
   { href: "/inventario", texto: "Inventario", icono: Package, lista: true },
-  { href: "/fiado", texto: "Fiado", icono: NotebookPen, lista: false },
+  { href: "/fiado", texto: "Fiado", icono: NotebookPen, lista: true },
   { href: "/ventas", texto: "Ventas", icono: Receipt, lista: true },
   { href: "/sugerencias", texto: "Sugerencias", icono: Sparkles, lista: false },
   { href: "/caja/cerrar", texto: "Cerrar caja", icono: Vault, lista: false },
