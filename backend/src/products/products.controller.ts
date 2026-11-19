@@ -1,20 +1,95 @@
-import { Controller, Get, Header, Query, Req } from '@nestjs/common';
+import { Controller, Get, Header, Query, Req, ValidationPipe, UsePipes, Body, Post,
+  Put, Param, ParseIntPipe } from '@nestjs/common';
 import {
   ApiCookieAuth,
   ApiOperation,
   ApiQuery,
   ApiResponse,
-  ApiTags,
+  ApiTags, ApiBody, ApiParam
 } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { readSessionToken } from '../auth/session-cookie.js';
 import { ProductsResponseDto } from './dto/product-response.dto.js';
 import { ProductsService } from './products.service.js';
+import { CreateProductDto } from './dto/create-product.dto.js';
+import { UpdateProductDto } from './dto/update-product.dto.js';
 
 @ApiTags('Productos')
 @Controller('productos')
+@UsePipes(
+  new ValidationPipe({
+    transform: true,
+    whitelist: true,
+    forbidNonWhitelisted: true,
+  }),
+)
 export class ProductsController {
   constructor(private readonly products: ProductsService) {}
+
+
+  @Post()
+  @ApiCookieAuth('md_session')
+  @ApiOperation({
+    summary: 'Crear producto',
+    description: 'Registra un producto nuevo y su stock inicial, si corresponde.',
+  })
+  @ApiBody({ type: CreateProductDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Producto creado exitosamente.',
+  })
+  @ApiResponse({ status: 400, description: 'Datos inválidos.' })
+  @ApiResponse({ status: 401, description: 'Sesión inválida o expirada.' })
+  @ApiResponse({ status: 404, description: 'Categoría inexistente.' })
+  @ApiResponse({ status: 409, description: 'Código de producto duplicado.' })
+  async create(
+    @Req() request: Request,
+    @Body() body: CreateProductDto,
+  ) {
+    const token = readSessionToken(request.headers.cookie);
+
+    return {
+      success: true,
+      data: await this.products.create(token, body),
+    };
+  }
+
+
+  @Put(':id')
+  @ApiCookieAuth('md_session')
+  @ApiOperation({
+    summary: 'Actualizar producto',
+    description:
+      'Actualiza los datos generales de un producto. No modifica las existencias.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: Number,
+    example: 37,
+    description: 'Identificador del producto.',
+  })
+  @ApiBody({ type: UpdateProductDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Producto actualizado exitosamente.',
+  })
+  @ApiResponse({ status: 400, description: 'Datos inválidos.' })
+  @ApiResponse({ status: 401, description: 'Sesión inválida o expirada.' })
+  @ApiResponse({ status: 404, description: 'Producto o categoría inexistente.' })
+  @ApiResponse({ status: 409, description: 'Código de producto duplicado.' })
+  async update(
+    @Req() request: Request,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateProductDto,
+  ) {
+    const token = readSessionToken(request.headers.cookie);
+
+    return {
+      success: true,
+      data: await this.products.update(token, id, body),
+    };
+  }
+
 
   @Get()
   @Header('Cache-Control', 'no-store')
