@@ -1,6 +1,7 @@
 import "server-only";
 import { redirect } from "next/navigation";
-import type { SesionCaja } from "@/lib/mock/caja";
+import { cajaMock, type SesionCaja } from "@/lib/mock/caja";
+import { requerirUsuario } from "@/lib/api/usuarios";
 import { obtenerTokenSesion, SESSION_COOKIE } from "@/lib/session";
 
 export type { SesionCaja };
@@ -43,7 +44,7 @@ async function obtenerMensajeError(response: Response): Promise<string> {
   return `Error en la API de caja (HTTP ${response.status}).`;
 }
 
-export async function obtenerCajaAbierta(): Promise<SesionCaja | null> {
+async function obtenerCajaAbiertaApi(): Promise<SesionCaja | null> {
   const token = await obtenerTokenSesion();
 
   if (!token) redirect("/login");
@@ -81,7 +82,7 @@ export async function obtenerCajaAbierta(): Promise<SesionCaja | null> {
   return result.data ? adaptarSesion(result.data) : null;
 }
 
-export async function abrirCaja(
+async function abrirCajaApi(
   montoInicial: number,
 ): Promise<SesionCaja> {
   const token = await obtenerTokenSesion();
@@ -124,4 +125,44 @@ export async function abrirCaja(
   }
 
   return adaptarSesion(result.data);
+}
+
+// ---------- Cierre simulado ----------
+// TODO: quitar cuando exista POST /caja/cerrar.
+// Mientras tanto, una caja "cerrada" en el mock se trata como cerrada aquí,
+// aunque en la base de datos siga abierta. Al abrir otra vez, se reutiliza
+// esa misma sesión con un fondo y una hora de apertura nuevos.
+
+export async function obtenerCajaAbierta(): Promise<SesionCaja | null> {
+  const real = await obtenerCajaAbiertaApi();
+  if (!real) return null;
+
+  const tramo = cajaMock.tramos.get(real.id);
+  if (!tramo) return real;
+  if (tramo.estado === "cerrada") return null;
+
+  return {
+    ...real,
+    user_id: tramo.userId,
+    opened_at: tramo.openedAt,
+    initial_amount: tramo.initialAmount,
+  };
+}
+
+export async function abrirCaja(montoInicial: number): Promise<SesionCaja> {
+  const real = await obtenerCajaAbiertaApi();
+  const tramo = real ? cajaMock.tramos.get(real.id) : undefined;
+
+  if (real && tramo?.estado === "cerrada") {
+    const usuario = await requerirUsuario();
+    cajaMock.tramos.set(real.id, {
+      estado: "reabierta",
+      openedAt: new Date(),
+      initialAmount: montoInicial,
+      userId: usuario.id,
+    });
+    return (await obtenerCajaAbierta())!;
+  }
+
+  return abrirCajaApi(montoInicial);
 }

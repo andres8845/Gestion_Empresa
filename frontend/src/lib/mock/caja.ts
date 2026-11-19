@@ -1,7 +1,6 @@
-// Datos de prueba de la caja mientras el backend no está listo.
-// Tienen la misma forma que la tabla `cash_register_sessions`.
-// Se guardan en la memoria del servidor de Next, así que se pierden al
-// reiniciar `npm run dev`. Este archivo se borra cuando exista la API.
+// Tipos de la caja y cierres de prueba mientras el backend no tiene
+// POST /caja/cerrar. La caja abierta real viene de GET /caja/abierta.
+// Se pierden al reiniciar `npm run dev`.
 
 export type SesionCaja = {
   id: number;
@@ -15,9 +14,28 @@ export type SesionCaja = {
   status: "abierta" | "cerrada";
 };
 
-// Se guarda en globalThis para que no se borre cada vez que Next
-// recarga el código mientras desarrollamos.
-const memoria = globalThis as unknown as { sesionesCaja?: SesionCaja[] };
-memoria.sesionesCaja ??= [];
+export type CierreCaja = {
+  sessionId: number;
+  userId: number;
+  openedAt: Date;
+  closedAt: Date;
+  initialAmount: number;
+  expectedAmount: number;
+  actualAmount: number;
+  difference: number;
+};
 
-export const sesionesCajaMock = memoria.sesionesCaja;
+// Estado simulado de cada sesión real de caja.
+type Tramo =
+  | { estado: "cerrada" }
+  | { estado: "reabierta"; openedAt: Date; initialAmount: number; userId: number };
+
+type EstadoCaja = {
+  tramos: Map<number, Tramo>;
+  cierres: CierreCaja[];
+};
+
+const memoria = globalThis as unknown as { caja?: EstadoCaja };
+memoria.caja ??= { tramos: new Map(), cierres: [] };
+
+export const cajaMock = memoria.caja;
