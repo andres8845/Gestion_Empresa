@@ -3,6 +3,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import {obtenerTokenSesion, SESSION_COOKIE } from "@/lib/session";
 import type { DatosPago } from "@/lib/cobro/pago";
+import { anulacionesMock } from "@/lib/mock/anulaciones";
 
 export type DetalleVenta = {
   productId: number;
@@ -77,10 +78,20 @@ async function obtenerHeaders(): Promise<HeadersInit> {
 }
 
 function convertirVenta(venta: VentaApi): Venta {
-  return {
+  const convertida: Venta = {
     ...venta,
     createdAt: new Date(venta.createdAt),
   };
+
+  // TODO: quitar cuando exista POST /ventas/:id/anular.
+  // Mientras tanto, se marcan como anuladas las ventas anuladas en el mock.
+  const anulacion = anulacionesMock.get(venta.id);
+  if (anulacion && convertida.status === "activa") {
+    convertida.status = "anulada";
+    convertida.voidReason = anulacion.voidReason;
+  }
+
+  return convertida;
 }
 
 // POST /ventas
@@ -186,4 +197,39 @@ export async function listarVentas(
   }
 
   return result.data.map(convertirVenta);
+}
+
+
+export type ResultadoAnulacion =
+  | { ok: true }
+  | { ok: false; error: string };
+
+// RN-36: anular una venta indicando el motivo.
+// TODO: el backend todavía no tiene este endpoint. Contrato propuesto:
+//   POST /ventas/:id/anular   body: { voidReason: string }
+//   En una sola transacción: status = "anulada", guarda voidReason,
+//   devuelve el stock (movimiento "anulacion"), elimina el cargo de fiado
+//   y resta el saldo del cliente, y registra la acción en audit_logs.
+// Mientras tanto se simula en memoria (src/lib/mock/anulaciones.ts).
+export async function anularVenta(
+  id: number,
+  motivo: string,
+  userId: number,
+): Promise<ResultadoAnulacion> {
+  const venta = await obtenerVenta(id);
+
+  if (!venta) {
+    return { ok: false, error: "La venta no existe." };
+  }
+  if (venta.status === "anulada") {
+    return { ok: false, error: "Esta venta ya estaba anulada." };
+  }
+
+  anulacionesMock.set(id, {
+    voidReason: motivo,
+    voidedAt: new Date(),
+    userId,
+  });
+
+  return { ok: true };
 }
