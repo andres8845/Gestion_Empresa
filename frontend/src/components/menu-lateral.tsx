@@ -23,7 +23,7 @@ type Opcion = {
 // Orden según el flujo del usuario en la tienda.
 const opciones: Opcion[] = [
   { href: "/cobro", texto: "Cobro", icono: ShoppingCart, lista: true },
-  { href: "/inventario", texto: "Inventario", icono: Package, lista: false },
+  { href: "/inventario", texto: "Inventario", icono: Package, lista: true },
   { href: "/fiado", texto: "Fiado", icono: NotebookPen, lista: false },
   { href: "/ventas", texto: "Ventas", icono: Receipt, lista: true },
   { href: "/sugerencias", texto: "Sugerencias", icono: Sparkles, lista: false },
