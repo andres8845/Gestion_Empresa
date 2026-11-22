@@ -597,6 +597,69 @@ export class SalesService {
     }
   }
 
+  async voidSale(token: string | undefined, id: number, reason: unknown) {
+    const user = await this.auth.currentUser(token);
+    if (!Number.isSafeInteger(id) || id <= 0 || typeof reason !== 'string') {
+      throw new BadRequestException({ success: false, message: 'El ID y el motivo de anulación son obligatorios.' });
+    }
+    const voidReason = reason.trim().replace(/\s+/g, ' ');
+    if (voidReason.length < 5 || voidReason.length > 200) {
+      throw new BadRequestException({ success: false, message: 'El motivo debe tener entre 5 y 200 caracteres.' });
+    }
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM sales WHERE id = ${id} FOR UPDATE`;
+        const sale = await tx.sale.findUnique({ where: { id }, include: {
+          creditCharges: { orderBy: { customerId: 'asc' } },
+          stockMovements: { where: { movementType: 'venta' }, orderBy: [{ productId: 'asc' }, { id: 'asc' }] },
+        } });
+        if (!sale) throw new NotFoundException({ success: false, message: 'La venta no existe.' });
+        if (sale.status === 'anulada') throw new ConflictException({ success: false, message: 'Esta venta ya estaba anulada.' });
+        const creditByCustomer = new Map<number, typeof sale.total>();
+        for (const charge of sale.creditCharges) {
+          creditByCustomer.set(charge.customerId, charge.amount.add(creditByCustomer.get(charge.customerId) ?? 0));
+        }
+        for (const [customerId, amount] of creditByCustomer) {
+          await tx.$queryRaw`SELECT id FROM credit_customers WHERE id = ${customerId} FOR UPDATE`;
+          const customer = await tx.creditCustomer.findUniqueOrThrow({ where: { id: customerId } });
+          if (customer.balance.lessThan(amount)) {
+            throw new ConflictException({ success: false, message: 'El saldo pendiente no cubre el fiado de esta venta. Resuelva los abonos antes de anular.' });
+          }
+          const previousCredit = await tx.creditCharge.aggregate({
+            where: { customerId, saleId: { not: id } }, _max: { createdAt: true },
+          });
+          await tx.creditCustomer.update({ where: { id: customerId }, data: {
+            balance: { decrement: amount }, lastMovementAt: new Date(),
+            lastCreditAt: previousCredit._max.createdAt,
+          } });
+        }
+        // Revertir lo efectivamente descontado, incluso si el paquete cambió después.
+        for (const movement of sale.stockMovements) {
+          await tx.$queryRaw`SELECT id FROM products WHERE id = ${movement.productId} FOR UPDATE`;
+          const product = await tx.product.findUniqueOrThrow({ where: { id: movement.productId } });
+          const quantity = movement.quantity.negated();
+          const updated = await tx.product.update({ where: { id: product.id }, data: { stock: { increment: quantity } } });
+          await tx.stockMovement.create({ data: {
+            productId: product.id, movementType: 'anulacion', quantity,
+            previousStock: product.stock, newStock: updated.stock,
+            saleId: id, userId: user.id, reason: voidReason,
+          } });
+        }
+        await tx.creditCharge.deleteMany({ where: { saleId: id } });
+        await tx.sale.update({ where: { id }, data: { status: 'anulada', voidReason } });
+        await tx.auditLog.create({ data: {
+          userId: user.id, action: 'anulacion_venta', targetTable: 'sales', targetId: id, details: voidReason,
+        } });
+      }, { isolationLevel: 'Serializable' });
+    } catch (error) {
+      if (esErrorPrisma(error, 'P2034')) {
+        throw new ConflictException({ success: false, message: 'Otra operación modificó la venta o el saldo. Actualice y vuelva a intentar.' });
+      }
+      throw error;
+    }
+    return { success: true };
+  }
+
   async findAll(token: string | undefined, limit = 50) {
     await this.auth.currentUser(token);
 

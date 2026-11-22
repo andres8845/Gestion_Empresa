@@ -1,6 +1,7 @@
 "use server";
 
 import { requerirUsuario } from "@/lib/api/usuarios";
+import { revalidatePath } from "next/cache";
 import { anularVenta } from "@/lib/api/ventas";
 
 const MOTIVO_MIN = 5;
@@ -12,7 +13,7 @@ export async function anularVentaAction(
   motivo: string,
 ): Promise<{ error?: string }> {
   // Se vuelve a validar la sesión aquí, no basta con el proxy.
-  const usuario = await requerirUsuario();
+  await requerirUsuario();
 
   const limpio = motivo.trim().replace(/\s+/g, " ");
   if (limpio.length < MOTIVO_MIN) {
@@ -22,9 +23,13 @@ export async function anularVentaAction(
     return { error: `El motivo es muy largo (máximo ${MOTIVO_MAX} letras).` };
   }
 
-  const resultado = await anularVenta(ventaId, limpio, usuario.id);
+  const resultado = await anularVenta(ventaId, limpio);
   if (!resultado.ok) {
     return { error: resultado.error };
   }
+  revalidatePath("/ventas");
+  revalidatePath(`/ventas/${ventaId}/factura`);
+  revalidatePath("/fiado");
+  revalidatePath("/cobro");
   return {};
 }
