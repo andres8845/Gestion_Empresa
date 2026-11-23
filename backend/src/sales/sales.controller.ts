@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Header,
+  HttpCode,
   Param,
   Post,
   Query,
@@ -27,10 +28,26 @@ import { CreateSaleDto } from './dto/create-sale.dto.js';
 import { SalesService } from './sales.service.js';
 
 @ApiTags('Ventas')
-@ApiCookieAuth('md_session')
+@ApiCookieAuth('cookie')
 @Controller('ventas')
 export class SalesController {
   constructor(private readonly sales: SalesService) {}
+
+  @Post(':id/anular')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Anular venta', description: 'Anula la venta, revierte sus movimientos originales de inventario y descuenta los cargos pendientes de fiado en una transacción. Rechaza la anulación si el saldo pendiente no cubre el cargo.' })
+  @ApiBody({ schema: { type: 'object', required: ['voidReason'], properties: {
+    voidReason: { type: 'string', minLength: 5, maxLength: 200, example: 'Error al registrar los productos' },
+  } } })
+  @ApiResponse({ status: 200, description: 'Venta anulada.' })
+  @ApiResponse({ status: 400, description: 'ID o motivo inválido.' })
+  @ApiResponse({ status: 401, description: 'Sesión inválida.' })
+  @ApiResponse({ status: 404, description: 'Venta inexistente.' })
+  @ApiResponse({ status: 409, description: 'Ya anulada, fiado abonado o conflicto concurrente.' })
+  @ApiResponse({ status: 500, description: 'Error interno.' })
+  async voidSale(@Req() request: Request, @Param('id') id: string, @Body() body: { voidReason?: unknown }) {
+    return this.sales.voidSale(readSessionToken(request.headers.cookie), Number(id), body?.voidReason);
+  }
 
   @Post()
   @ApiOperation({

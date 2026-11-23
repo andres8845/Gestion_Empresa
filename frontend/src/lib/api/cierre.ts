@@ -1,7 +1,7 @@
 import "server-only";
 import { obtenerCajaAbierta, type SesionCaja } from "@/lib/api/caja";
 import { listarVentas } from "@/lib/api/ventas";
-import { fiadoMock } from "@/lib/mock/fiado";
+import { listarAbonosCaja } from "@/lib/api/fiado";
 import { cajaMock, type CierreCaja } from "@/lib/mock/caja";
 import { redondear } from "@/lib/cobro/carrito";
 
@@ -44,7 +44,7 @@ export async function obtenerResumenCaja(): Promise<ResumenCaja | null> {
     );
 
   // Se usa la copia sin nombre, porque los abonos de un cliente borrado ya no existen.
-  const abonos = fiadoMock.abonosEnCaja.filter(
+  const abonos = (await listarAbonosCaja()).filter(
     (a) => a.cashRegisterSessionId === caja.id && a.createdAt.getTime() >= desde,
   );
   const sumaAbonos = (metodo: "efectivo" | "tarjeta") =>

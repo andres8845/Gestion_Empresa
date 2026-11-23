@@ -3,7 +3,6 @@ import "server-only";
 import { redirect } from "next/navigation";
 import {obtenerTokenSesion, SESSION_COOKIE } from "@/lib/session";
 import type { DatosPago } from "@/lib/cobro/pago";
-import { anulacionesMock } from "@/lib/mock/anulaciones";
 
 export type DetalleVenta = {
   productId: number;
@@ -82,14 +81,6 @@ function convertirVenta(venta: VentaApi): Venta {
     ...venta,
     createdAt: new Date(venta.createdAt),
   };
-
-  // TODO: quitar cuando exista POST /ventas/:id/anular.
-  // Mientras tanto, se marcan como anuladas las ventas anuladas en el mock.
-  const anulacion = anulacionesMock.get(venta.id);
-  if (anulacion && convertida.status === "activa") {
-    convertida.status = "anulada";
-    convertida.voidReason = anulacion.voidReason;
-  }
 
   return convertida;
 }
@@ -204,32 +195,25 @@ export type ResultadoAnulacion =
   | { ok: true }
   | { ok: false; error: string };
 
-// RN-36: anular una venta indicando el motivo.
-// TODO: el backend todavía no tiene este endpoint. Contrato propuesto:
-//   POST /ventas/:id/anular   body: { voidReason: string }
-//   En una sola transacción: status = "anulada", guarda voidReason,
-//   devuelve el stock (movimiento "anulacion"), elimina el cargo de fiado
-//   y resta el saldo del cliente, y registra la acción en audit_logs.
-// Mientras tanto se simula en memoria (src/lib/mock/anulaciones.ts).
+// RN-36: la API valida y anula la venta de forma transaccional.
 export async function anularVenta(
   id: number,
   motivo: string,
-  userId: number,
 ): Promise<ResultadoAnulacion> {
-  const venta = await obtenerVenta(id);
-
-  if (!venta) {
-    return { ok: false, error: "La venta no existe." };
+  const headers = await obtenerHeaders();
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/ventas/${id}/anular`, {
+      method: "POST", headers, body: JSON.stringify({ voidReason: motivo }), cache: "no-store",
+    });
+  } catch {
+    return { ok: false, error: "No se pudo confirmar la anulación. Actualice el historial antes de reintentar." };
   }
-  if (venta.status === "anulada") {
-    return { ok: false, error: "Esta venta ya estaba anulada." };
+  if (response.status === 401) redirect("/login");
+  const result = await response.json().catch(() => null) as RespuestaApi<unknown> | null;
+  if (!response.ok || result?.success !== true) {
+    const message = result?.message;
+    return { ok: false, error: Array.isArray(message) ? message.join(". ") : message ?? "No se pudo anular la venta." };
   }
-
-  anulacionesMock.set(id, {
-    voidReason: motivo,
-    voidedAt: new Date(),
-    userId,
-  });
-
   return { ok: true };
 }
